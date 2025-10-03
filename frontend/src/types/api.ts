@@ -15,6 +15,7 @@ export interface Event {
   status: EventStatus;
   isActive: boolean;
   coordinatorId: string;
+  checklistId?: string;
   createdAt: Date;
   updatedAt?: Date;
   // Relacionamentos
@@ -56,48 +57,73 @@ export interface ArticleVersion {
   evaluations?: Evaluation[];
 }
 
+// ✅ CORRIGIDO: Interface Evaluation alinhada com backend
 export interface Evaluation {
   id: string;
-  grade?: number;
+  grade: number;
   evaluationDescription?: string;
-  evaluationDate?: Date;
-  status: "TO_CORRECTION" | "APPROVED" | "REJECTED";
-  userId: string; // Avaliador
+  evaluationDate: string;
+  userId: string;
   articleVersionId: string;
-  createdAt: Date;
-  updatedAt?: Date;
-  // Relacionamentos
-  evaluator?: User;
-  articleVersion?: ArticleVersion;
-  responses?: QuestionResponse[];
+  createdAt: string;
+  updatedAt: string;
+  status?: "TO_CORRECTION" | "APPROVED" | "REJECTED"; // ✅ Status específicos
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  articleVersion: {
+    id: string;
+    version: number;
+    article: {
+      id: string;
+      title: string;
+      status: ArticleStatus;
+      evaluationsDone: number;
+      event: {
+        id: string;
+        name: string;
+        evaluationType: EvaluationType;
+      };
+    };
+  };
+  // ✅ CORRIGIDO: ChecklistResponses alinhadas com backend
+  checklistResponses?: ChecklistResponse[];
 }
 
 export interface Checklist {
   id: string;
-  title: string;
+  name: string; // ✅ Backend usa 'name' não 'title'
   description?: string;
-  eventId?: string;
+  isActive: boolean;
   createdAt: Date;
   updatedAt?: Date;
   // Relacionamentos
   questions?: Question[];
-  event?: Event;
+  events?: Event[];
+  _count?: {
+    questions: number;
+  };
 }
 
+// ✅ CORRIGIDO: Interface Question alinhada com backend
 export interface Question {
   id: string;
-  text: string;
-  type: "BOOLEAN" | "TEXT" | "SCALE" | "MULTIPLE_CHOICE";
+  description: string; // ✅ Backend usa 'description' não 'text'
+  type: "YES_NO" | "TEXT" | "SCALE";
   isRequired: boolean;
-  order: number;
-  options?: string[]; // Para multiple choice
+  order?: number;
   checklistId: string;
+  isActive: boolean;
   createdAt: Date;
+  updatedAt?: Date;
   // Relacionamentos
   checklist?: Checklist;
   responses?: QuestionResponse[];
 }
 
+// ✅ MANTIDO: Interface legacy QuestionResponse (pode ser removida futuramente)
 export interface QuestionResponse {
   id: string;
   answer: string;
@@ -107,4 +133,77 @@ export interface QuestionResponse {
   // Relacionamentos
   question?: Question;
   evaluation?: Evaluation;
+}
+
+// ✅ CORRIGIDO: Interface ChecklistResponse alinhada com backend
+export interface ChecklistResponse {
+  id?: string;
+  questionId: string;
+  booleanResponse?: boolean;
+  scaleResponse?: number;
+  textResponse?: string;
+  userId?: string;
+  articleVersionId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  // Relacionamentos
+  question?: Question;
+  user?: User;
+  articleVersion?: ArticleVersion;
+}
+
+// ✅ NOVO: Tipos para DTOs de criação e atualização
+export interface CreateEvaluationRequest {
+  grade: number;
+  evaluationDescription?: string;
+  articleVersionId: string;
+  status: "TO_CORRECTION" | "APPROVED" | "REJECTED";
+  checklistResponses?: Array<{
+    questionId: string;
+    booleanResponse?: boolean;
+    scaleResponse?: number;
+    textResponse?: string;
+  }>;
+}
+
+export interface UpdateEvaluationRequest
+  extends Partial<CreateEvaluationRequest> {
+  id: string;
+}
+
+// ✅ NOVO: Tipo para resposta de avaliação completa
+export interface EvaluationResponse extends Evaluation {
+  checklistResponses: Array<
+    ChecklistResponse & {
+      question: Question;
+    }
+  >;
+}
+
+// ✅ NOVO: Tipo para listagem de avaliações
+export interface EvaluationListResponse {
+  data: Evaluation[];
+  total: number;
+  page?: number;
+  limit?: number;
+}
+
+// ✅ NOVO: Tipos para filtros de avaliação
+export interface EvaluationFilters {
+  status?: "TO_CORRECTION" | "APPROVED" | "REJECTED";
+  articleId?: string;
+  userId?: string;
+  eventId?: string;
+  withChecklistResponses?: boolean;
+}
+
+// ✅ NOVO: Tipo para estatísticas de avaliação
+export interface EvaluationStats {
+  total: number;
+  pending: number;
+  completed: number;
+  approved: number;
+  rejected: number;
+  toCorrection: number;
+  averageGrade?: number;
 }

@@ -50,9 +50,9 @@ export const metadata: Metadata = {
     description: APP_CONFIG.description,
   },
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-16x16.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/image.png",
+    shortcut: "/image.png",
+    apple: "/image.png",
   },
   manifest: "/manifest.json",
 };

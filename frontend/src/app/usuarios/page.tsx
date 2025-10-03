@@ -38,6 +38,7 @@ import {
   AlertCircle,
   CheckCircle,
   Mail,
+  UserLock,
 } from "lucide-react";
 import { USER_ROLES, formatDate } from "@/lib/utils";
 import { useForm } from "react-hook-form";
@@ -240,7 +241,7 @@ export default function UsersPage() {
             title={user.isActive ? "Desativar" : "Ativar"}
           >
             {user.isActive ? (
-              <UserX className="h-4 w-4 text-red-600" />
+              <UserLock className="h-4 w-4 text-red-600" />
             ) : (
               <CheckCircle className="h-4 w-4 text-green-600" />
             )}

@@ -70,8 +70,7 @@ export function RegisterForm() {
     try {
       setError("");
 
-      // Remover confirmPassword antes de enviar para o backend
-      const { ...apiData } = data;
+      const { confirmPassword, ...apiData } = data;
       await registerUser(apiData as RegisterApiData);
     } catch (err: any) {
       setError(err.message || "Erro ao fazer cadastro");

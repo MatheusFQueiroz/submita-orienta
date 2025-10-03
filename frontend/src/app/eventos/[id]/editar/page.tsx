@@ -59,9 +59,7 @@ export default function EditEventPage() {
     try {
       await updateEvent(eventId, data);
       router.push(ROUTES.EVENT_DETAILS(eventId));
-    } catch (error) {
-      console.error("Erro ao atualizar evento:", error);
-    }
+    } catch (error) {}
   };
 
   const breadcrumbs = [

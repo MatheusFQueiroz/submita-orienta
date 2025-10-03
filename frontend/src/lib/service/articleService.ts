@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { Article } from "@/types";
+import { Article, Evaluation } from "@/types";
 
 interface CreateArticleRequest {
   title: string;
@@ -94,10 +94,7 @@ export const articleService = {
   },
 
   // Atualizar artigo com nova versão (para ressalvas)
-  async updateArticleVersion(
-    id: string,
-    pdfFile: File,
-  ): Promise<Article> {
+  async updateArticleVersion(id: string, pdfFile: File): Promise<Article> {
     try {
       // Upload do novo PDF
       const uploadResponse = await api.uploadFile("/files/upload/pdf", pdfFile);
@@ -113,6 +110,28 @@ export const articleService = {
     }
   },
 
+  // Criar nova versão do artigo
+  async createNewVersion(articleId: string, pdfFile: File): Promise<Article> {
+    try {
+      // Upload do novo PDF
+      const uploadResponse = await api.uploadFile("/files/upload/pdf", pdfFile);
+
+      // Criar nova versão usando a rota correta
+      const versionData = {
+        pdfPath: uploadResponse.fileName,
+      };
+
+      const result = await api.put<Article>(
+        `/articles/${articleId}/new-version`,
+        versionData
+      );
+
+      return result;
+    } catch (error: any) {
+      throw new Error(error?.message || "Erro ao criar nova versão");
+    }
+  },
+
   // Deletar/Retirar artigo
   async deleteArticle(id: string): Promise<void> {
     return api.delete(`/articles/${id}`);
@@ -121,5 +140,33 @@ export const articleService = {
   // Download do PDF
   async downloadPDF(pdfPath: string): Promise<Blob> {
     return api.downloadFile(`/files/file/submita-pdfs?fileName=${pdfPath}`);
+  },
+
+  // Buscar avaliações de um artigo
+  async getArticleEvaluations(
+    articleId: string
+  ): Promise<{ data: Evaluation[]; total: number }> {
+    try {
+      // Tentar usar o endpoint de filtros gerais primeiro
+      return await api.get<{ data: Evaluation[]; total: number }>(
+        `/evaluations?articleId=${articleId}`
+      );
+    } catch (error: any) {
+      try {
+        // Se falhar, tentar o endpoint específico do artigo
+        return await api.get<{ data: Evaluation[]; total: number }>(
+          `/evaluations/article/${articleId}`
+        );
+      } catch (specificError: any) {
+        // Se ambos falharem ou não houver permissão, retorna estrutura vazia
+        if (
+          specificError.response?.status === 404 ||
+          specificError.response?.status === 403
+        ) {
+          return { data: [], total: 0 };
+        }
+        throw specificError;
+      }
+    }
   },
 };

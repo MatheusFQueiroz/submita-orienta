@@ -23,12 +23,12 @@ import { ROUTES, formatDate } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 export function StudentDashboard() {
-  const {
-    data: stats,
-    loading: statsLoading,
-  } = useApi<StudentStats>(() => api.get("/dashboard/student/stats"), {
-    immediate: true,
-  });
+  const { data: stats, loading: statsLoading } = useApi<StudentStats>(
+    () => api.get("/dashboard/student/stats"),
+    {
+      immediate: true,
+    }
+  );
 
   if (statsLoading) {
     return (

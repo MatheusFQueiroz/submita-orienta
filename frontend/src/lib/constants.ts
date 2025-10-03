@@ -45,6 +45,7 @@ export const ROUTES = {
   EVENT_ARTICLES: (id: string) => `/eventos/${id}/artigos`,
   EVENT_EVALUATORS: (id: string) => `/eventos/${id}/avaliadores`,
   ARTICLE_DETAILS: (id: string) => `/artigos/${id}`,
+  ARTICLE_EVALUATIONS: (id: string) => `/artigos/${id}/avaliacoes`,
   EVALUATE_ARTICLE: (id: string) => `/avaliar/${id}`,
   ARTICLE_CORRECTIONS: (id: string) => `/ressalvas/${id}`,
 } as const;
@@ -55,12 +56,13 @@ export const USER_ROLES = {
   COORDINATOR: "COORDINATOR",
 } as const;
 
+// ✅ CORRIGIDO: Status conforme enum do backend
 export const ARTICLE_STATUS = {
   SUBMITTED: "SUBMITTED",
-  UNDER_REVIEW: "UNDER_REVIEW",
+  IN_EVALUATION: "IN_EVALUATION",
   APPROVED: "APPROVED",
+  TO_CORRECTION: "TO_CORRECTION",
   REJECTED: "REJECTED",
-  APPROVED_WITH_CORRECTIONS: "APPROVED_WITH_CORRECTIONS",
 } as const;
 
 export const EVALUATION_TYPE = {
@@ -69,18 +71,38 @@ export const EVALUATION_TYPE = {
   PANEL: "PANEL",
 } as const;
 
+// ✅ CORRIGIDO: Labels corretos para cada status
 export const STATUS_LABELS = {
   [ARTICLE_STATUS.SUBMITTED]: "Submetido",
-  [ARTICLE_STATUS.UNDER_REVIEW]: "Em Avaliação",
+  [ARTICLE_STATUS.IN_EVALUATION]: "Em Avaliação",
   [ARTICLE_STATUS.APPROVED]: "Aprovado",
+  [ARTICLE_STATUS.TO_CORRECTION]: "Necessita Correção",
   [ARTICLE_STATUS.REJECTED]: "Rejeitado",
-  [ARTICLE_STATUS.APPROVED_WITH_CORRECTIONS]: "Aprovado com Correções",
 } as const;
 
+// ✅ CORRIGIDO: Cores para cada status
 export const STATUS_COLORS = {
   [ARTICLE_STATUS.SUBMITTED]: "bg-blue-100 text-blue-800",
-  [ARTICLE_STATUS.UNDER_REVIEW]: "bg-yellow-100 text-yellow-800",
+  [ARTICLE_STATUS.IN_EVALUATION]: "bg-yellow-100 text-yellow-800",
   [ARTICLE_STATUS.APPROVED]: "bg-green-100 text-green-800",
+  [ARTICLE_STATUS.TO_CORRECTION]: "bg-orange-100 text-orange-800",
   [ARTICLE_STATUS.REJECTED]: "bg-red-100 text-red-800",
-  [ARTICLE_STATUS.APPROVED_WITH_CORRECTIONS]: "bg-purple-100 text-purple-800",
 } as const;
+
+// ✅ NOVA FUNÇÃO: Helper para obter label do status
+export const getStatusLabel = (status: string): string => {
+  return STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status;
+};
+
+// ✅ NOVA FUNÇÃO: Helper para obter cor do status
+export const getStatusColor = (status: string): string => {
+  return (
+    STATUS_COLORS[status as keyof typeof STATUS_COLORS] ||
+    "bg-gray-100 text-gray-800"
+  );
+};
+
+// ✅ FUNÇÃO: Verificar se pode submeter nova versão
+export const canSubmitNewVersion = (status: string): boolean => {
+  return status === ARTICLE_STATUS.TO_CORRECTION;
+};

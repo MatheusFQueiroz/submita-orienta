@@ -41,7 +41,6 @@ export default function SubmitArticlePage() {
 
         setEvents(availableEvents);
       } catch (error) {
-        console.error("Erro ao carregar eventos:", error);
       } finally {
         setIsLoadingEvents(false);
       }

@@ -28,11 +28,15 @@ export function EvaluatorDashboard() {
     { immediate: true }
   );
 
-  const { data: pendingEvaluations, loading: evaluationsLoading } = useApi<
-    Evaluation[]
-  >(() => api.get("/evaluations?status=TO_CORRECTION&limit=5"), {
+  const { data: pendingEvaluationsData, loading: evaluationsLoading } = useApi<{
+    pendingEvaluations: any[];
+    total: number;
+  }>(() => api.get("/evaluations/pending?limit=5"), {
     immediate: true,
   });
+
+  // Extrair as avaliações pendentes dos dados
+  const pendingEvaluations = pendingEvaluationsData?.pendingEvaluations || [];
 
   if (statsLoading) {
     return (
@@ -208,7 +212,7 @@ export function EvaluatorDashboard() {
                         Atribuído em {formatDate(evaluation.createdAt)}
                       </span>
                       <Badge variant="outline" className="text-xs">
-                        Versão {evaluation.articleVersion?.version}
+                        Versão {evaluation.articleVersion?.version || 1}
                       </Badge>
                     </div>
                   </div>

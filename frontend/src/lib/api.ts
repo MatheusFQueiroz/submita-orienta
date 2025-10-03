@@ -95,7 +95,6 @@ class ApiClient {
     return Cookies.get("submita_first_login") === "true";
   }
 
-  // ✅ NOVO: Marcar que não é mais primeiro login
   clearFirstLoginFlag() {
     Cookies.remove("submita_first_login");
   }

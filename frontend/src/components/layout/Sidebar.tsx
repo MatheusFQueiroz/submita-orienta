@@ -127,7 +127,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             alt="Logo SUBMITA"
             width={180}
             height={70}
-            className={`object-contain`}
+            className="object-contain"
+            style={{ width: "auto", height: "auto" }}
             priority
           />
 
@@ -192,7 +193,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">
-                      <p className="text-sm font-medium truncate">
+                      <p className="text-sm font-medium max-w-[170px] truncate">
                         {user.name}
                       </p>
                       <p className="text-xs text-gray-500 truncate">
@@ -211,7 +212,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               >
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
+                    <p className="text-sm font-medium leading-none max-w-[170px] truncate">
                       {user.name}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">

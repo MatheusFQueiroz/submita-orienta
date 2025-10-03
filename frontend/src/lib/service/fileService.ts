@@ -7,7 +7,7 @@ export const fileService = {
     file: File,
     onProgress?: (progress: number) => void
   ): Promise<FileUploadResponse> {
-    return api.uploadFile("/files/upload/pdf", file, onProgress);
+    return api.uploadFile("/files/upload", file, onProgress);
   },
 
   // Upload de imagem

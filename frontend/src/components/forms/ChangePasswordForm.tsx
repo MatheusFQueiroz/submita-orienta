@@ -14,6 +14,7 @@ import {
   changePasswordSchema,
   ChangePasswordFormData,
 } from "@/lib/validations";
+import Image from "next/image";
 
 interface ChangePasswordFormProps {
   isFirstLogin?: boolean;
@@ -49,9 +50,14 @@ export function ChangePasswordForm({
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="space-y-1 text-center">
         <div className="flex justify-center mb-4">
-          <div className="submita-gradient w-12 h-12 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">S</span>
-          </div>
+          <Image
+            src="/images/faculdade-donaduzzi-removebg.png"
+            alt="Logo SUBMITA"
+            width={230}
+            height={100}
+            className={`object-contain`} // Adiciona 'hidden' se 'user' existir
+            priority
+          />
         </div>
         <CardTitle className="text-2xl font-bold">
           {isFirstLogin ? "Redefinir Senha" : "Alterar Senha"}
@@ -196,7 +202,11 @@ export function ChangePasswordForm({
           </div>
 
           {/* Botão */}
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            className="w-full btn-gradient-primary"
+            disabled={isSubmitting}
+          >
             {isSubmitting ? "Alterando..." : "Alterar senha"}
           </Button>
         </form>

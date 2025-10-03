@@ -1,3 +1,5 @@
+// src/middleware.ts - SOLUÇÃO CORRIGIDA
+
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
@@ -5,7 +7,7 @@ import { jwtVerify } from "jose";
 // Rotas que não precisam de autenticação
 const publicRoutes = ["/", "/login", "/register"];
 
-// Rotas que requerem redefinição de senha
+// Rotas de redefinir senha
 const passwordRoutes = ["/redefinir-senha"];
 
 // Rotas por role
@@ -37,9 +39,32 @@ const roleRoutes = {
   ],
 };
 
+async function fetchUserProfile(token: string): Promise<any> {
+  try {
+    const baseURL =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+    const response = await fetch(`${baseURL}/auth/profile`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch profile");
+    }
+
+    const data = await response.json();
+    return data.data || data; // Dependendo da estrutura da resposta
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // Pular arquivos estáticos
   if (
     request.nextUrl.pathname.startsWith("/images/") ||
     request.nextUrl.pathname.startsWith("/icons/") ||
@@ -70,15 +95,23 @@ export async function middleware(request: NextRequest) {
 
     const tokenData = payload as any;
 
-    // Mapear dados do token
+    // BUSCAR PROFILE COMPLETO DA API para pegar isFirstLogin
+    const userProfile = await fetchUserProfile(token);
+
+    if (!userProfile) {
+      const response = NextResponse.redirect(new URL("/login", request.url));
+      response.cookies.delete("submita_token");
+      return response;
+    }
+
     const user = {
       id: tokenData.userId,
-      role: tokenData.role,
-      isFirstLogin: tokenData.isFirstLogin || false,
-      email: tokenData.email,
+      role: tokenData.role || userProfile.role,
+      email: tokenData.email || userProfile.email,
+      isFirstLogin: userProfile.isFirstLogin || false, // PEGAR DO PROFILE
     };
 
-    // Se é primeira senha e não está na rota de redefinir senha
+    // PRIMEIRA VERIFICAÇÃO: Se é primeira senha e NÃO está na rota de redefinir senha
     if (
       user.isFirstLogin &&
       !passwordRoutes.some((route) => pathname.startsWith(route))
@@ -86,7 +119,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/redefinir-senha", request.url));
     }
 
-    // Se não é primeira senha mas está tentando acessar rota de redefinir senha
+    // SEGUNDA VERIFICAÇÃO: Se NÃO é primeira senha mas está tentando acessar rota de redefinir senha
     if (
       !user.isFirstLogin &&
       passwordRoutes.some((route) => pathname.startsWith(route))
@@ -94,22 +127,31 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Verifica permissões por role
-    const userRole = user.role;
-    const allowedRoutes = roleRoutes[userRole as keyof typeof roleRoutes] || [];
+    // Se é redefinir senha e é primeiro login, permite acesso
+    if (
+      user.isFirstLogin &&
+      passwordRoutes.some((route) => pathname.startsWith(route))
+    ) {
+      return NextResponse.next();
+    }
 
-    // Permite acesso se a rota está nas permitidas para o role
-    const hasAccess = allowedRoutes.some((route) => pathname.startsWith(route));
+    // Verifica permissões por role APENAS se não é primeiro login
+    if (!user.isFirstLogin) {
+      const userRole = user.role;
+      const allowedRoutes =
+        roleRoutes[userRole as keyof typeof roleRoutes] || [];
 
-    if (!hasAccess) {
-      // Redireciona para dashboard se não tem acesso à rota
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      const hasAccess = allowedRoutes.some((route) =>
+        pathname.startsWith(route)
+      );
+
+      if (!hasAccess) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
     }
 
     return NextResponse.next();
   } catch (error) {
-    // Token inválido, redireciona para login
-    console.log("Token inválido ou expirado:", error);
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("submita_token");
     return response;

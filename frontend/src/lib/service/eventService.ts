@@ -151,10 +151,15 @@ export const eventService = {
   },
 
   // Adicionar checklist ao evento
-  async addChecklistToEvent(
+  async assignChecklistToEvent(
     eventId: string,
     checklistId: string
-  ): Promise<void> {
-    return api.patch(`/events/${eventId}/checklist`, { checklistId });
+  ): Promise<Event> {
+    return api.patch<Event>(`/events/${eventId}/checklist`, { checklistId });
+  },
+
+  // Remover checklist do evento
+  async removeChecklistFromEvent(eventId: string): Promise<Event> {
+    return api.delete<Event>(`/events/${eventId}/checklist`);
   },
 };

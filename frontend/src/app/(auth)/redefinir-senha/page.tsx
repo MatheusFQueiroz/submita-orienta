@@ -57,24 +57,6 @@ export default function ResetPasswordPage() {
         {/* Formulário de Redefinir Senha */}
         <ChangePasswordForm isFirstLogin={true} />
 
-        {/* Informações de Segurança */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="text-center text-sm">
-              <h3 className="font-medium text-blue-900 mb-2 flex items-center justify-center">
-                <Shield className="mr-2 h-4 w-4" />
-                Segurança em Primeiro Lugar
-              </h3>
-              <div className="space-y-1 text-blue-700 text-left">
-                <p>• Esta é uma medida de segurança obrigatória</p>
-                <p>• Sua senha deve ser forte e única</p>
-                <p>• Não compartilhe suas credenciais</p>
-                <p>• Você poderá alterar a senha novamente no perfil</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Informação do Usuário */}
         <div className="text-center text-sm text-gray-600">
           <p>

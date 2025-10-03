@@ -114,7 +114,7 @@ export const articleSchema = z.object({
   summary: z
     .string()
     .min(10, "Resumo deve ter pelo menos 10 caracteres")
-    .max(300, "Resumo deve ter no máximo 300 caracteres")
+    .max(1000, "Resumo deve ter no máximo 1000 caracteres")
     .transform((val) => val.trim()),
   thematicArea: z
     .string()
@@ -124,7 +124,7 @@ export const articleSchema = z.object({
   keywords: z
     .array(z.string().min(1, "Palavra-chave não pode estar vazia"))
     .min(1, "Pelo menos uma palavra-chave é obrigatória")
-    .max(10, "Máximo de 10 palavras-chave permitidas"),
+    .max(50, "Máximo de 50 palavras-chave permitidas"),
   relatedAuthors: z
     .array(z.string().min(1, "Nome do autor não pode estar vazio"))
     .max(20, "Máximo de 20 autores relacionados"),
@@ -141,7 +141,7 @@ export const evaluationSchema = z.object({
   evaluationDescription: z
     .string()
     .min(50, "Comentário deve ter pelo menos 50 caracteres")
-    .max(2000, "Comentário deve ter no máximo 2000 caracteres"),
+    .max(3000, "Comentário deve ter no máximo 3000 caracteres"),
   responses: z.array(
     z.object({
       questionId: z.string(),
@@ -224,6 +224,69 @@ export const completeChecklistSchema = z.object({
   questions: z.array(questionSchema).min(1),
 });
 
+// ===== NOVOS SCHEMAS PARA AVALIAÇÃO UNIFICADA =====
+
+// Schema para resposta de checklist individual
+export const checklistResponseSchema = z
+  .object({
+    questionId: z.string().uuid("ID da questão deve ser um UUID válido"),
+    booleanResponse: z.boolean().optional(),
+    scaleResponse: z
+      .number()
+      .min(1, "Escala mínima é 1")
+      .max(5, "Escala máxima é 5")
+      .optional(),
+    textResponse: z
+      .string()
+      .max(1000, "Resposta de texto não pode exceder 1000 caracteres")
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      // Pelo menos um tipo de resposta deve estar presente
+      const hasResponse =
+        data.booleanResponse !== undefined ||
+        data.scaleResponse !== undefined ||
+        (data.textResponse && data.textResponse.trim() !== "");
+      return hasResponse;
+    },
+    {
+      message: "Pelo menos um tipo de resposta deve ser fornecido",
+    }
+  );
+
+// Schema principal para avaliação completa - CORRIGIDO STATUS MAPPING
+export const completeEvaluationSchema = z.object({
+  grade: z
+    .number()
+    .min(0, "Nota mínima é 0")
+    .max(10, "Nota máxima é 10")
+    .refine((val) => Number.isFinite(val), "Nota deve ser um número válido"),
+
+  evaluationDescription: z
+    .string()
+    .min(10, "Comentário deve ter pelo menos 10 caracteres")
+    .max(1000, "Comentário não pode exceder 1000 caracteres")
+    .transform((val) => val.trim()),
+
+  // ✅ CORRIGIDO: Mapeamento correto para backend
+  status: z.enum(["APPROVED", "TO_CORRECTION", "REJECTED"], {
+    required_error: "Status da avaliação é obrigatório",
+    invalid_type_error: "Status deve ser APPROVED, TO_CORRECTION ou REJECTED",
+  }),
+
+  articleVersionId: z
+    .string()
+    .uuid("ID da versão do artigo deve ser um UUID válido"),
+
+  checklistResponses: z.array(checklistResponseSchema).optional(),
+});
+
+// Schema para validação rápida de nota
+export const gradeValidationSchema = z.object({
+  grade: z.number().min(0).max(10),
+});
+
 // ===== SCHEMAS PARA FILTROS E BUSCA =====
 
 export const checklistFiltersSchema = z.object({
@@ -231,16 +294,6 @@ export const checklistFiltersSchema = z.object({
   isActive: z.boolean().optional(),
   withQuestions: z.boolean().optional(),
 });
-
-// ===== TIPOS INFERIDOS DOS SCHEMAS =====
-
-export type ChecklistBasicFormData = z.infer<typeof checklistBasicSchema>;
-export type QuestionFormData = z.infer<typeof questionSchema>;
-export type QuestionsFormData = z.infer<typeof questionsSchema>;
-export type QuestionFormSchemaData = z.infer<typeof questionFormSchema>;
-export type QuestionsFormSchemaData = z.infer<typeof questionsFormSchema>;
-export type CompleteChecklistFormData = z.infer<typeof completeChecklistSchema>;
-export type ChecklistFiltersData = z.infer<typeof checklistFiltersSchema>;
 
 // ===== VALIDADORES CUSTOMIZADOS =====
 
@@ -296,6 +349,45 @@ export const validateQuestionDistribution = (
   };
 };
 
+// Função para determinar se uma avaliação pode ser editada
+export const canEditEvaluation = (evaluation: any, currentUserId: string) => {
+  // Só pode editar se for o autor da avaliação
+  if (evaluation.userId !== currentUserId) {
+    return false;
+  }
+
+  // Verificar se o artigo ainda está em status que permite edição
+  const editableStatuses = ["SUBMITTED", "IN_EVALUATION"];
+  return editableStatuses.includes(evaluation.articleVersion?.article?.status);
+};
+
+// Função para calcular cor da nota baseada no valor
+export const getGradeColorClass = (grade: number) => {
+  if (grade >= 8) return "text-green-600";
+  if (grade >= 6) return "text-yellow-600";
+  if (grade >= 4) return "text-orange-600";
+  return "text-red-600";
+};
+
+// Função para calcular cor do status
+export const getStatusColorClass = (status: string) => {
+  switch (status) {
+    case "APPROVED":
+      return "text-green-600";
+    case "TO_CORRECTION":
+      return "text-yellow-600";
+    case "REJECTED":
+      return "text-red-600";
+    default:
+      return "text-gray-600";
+  }
+};
+
+// ✅ NOVA FUNÇÃO: Verificar se artigo pode receber nova versão
+export const canSubmitNewVersion = (articleStatus: string) => {
+  return articleStatus === "TO_CORRECTION";
+};
+
 // ===== HELPERS DE VALIDAÇÃO =====
 
 export const getQuestionTypeOptions = () =>
@@ -308,8 +400,8 @@ export const getQuestionTypeOptions = () =>
     },
     {
       value: "SCALE",
-      label: "Escala (1-10)",
-      description: "Resposta: Escala de 1 a 10",
+      label: "Escala (1-5)",
+      description: "Resposta: Escala de 1 a 5",
     },
   ] as const;
 
@@ -357,6 +449,191 @@ export const validateChecklistBeforeSubmit = (
   };
 };
 
+// Validações individuais por tipo de questão
+export const validateChecklistResponseByType = (
+  type: string,
+  response: any
+) => {
+  switch (type) {
+    case "YES_NO":
+      return z.boolean().parse(response.booleanResponse);
+    case "SCALE":
+      return z.number().min(1).max(5).parse(response.scaleResponse);
+    case "TEXT":
+      return z.string().min(1).parse(response.textResponse);
+    default:
+      throw new Error(`Tipo de questão inválido: ${type}`);
+  }
+};
+
+// ✅ FUNÇÃO CORRIGIDA - Validação completa do formulário de avaliação
+export const validateEvaluationForm = (
+  formData: any,
+  questions: any[] = []
+) => {
+  const errors: Record<string, string> = {};
+
+  // Validar nota (obrigatória)
+  if (!formData.grade || formData.grade < 0 || formData.grade > 10) {
+    errors.grade = "Nota deve estar entre 0 e 10";
+  }
+
+  // Validar descrição da avaliação (opcional, mas se preenchida deve ter mínimo)
+  if (
+    formData.evaluationDescription &&
+    formData.evaluationDescription.trim().length < 10
+  ) {
+    errors.evaluationDescription =
+      "Descrição deve ter pelo menos 10 caracteres";
+  }
+
+  // Validar status (obrigatório)
+  if (
+    !formData.status ||
+    !["TO_CORRECTION", "APPROVED", "REJECTED"].includes(formData.status)
+  ) {
+    errors.status = "Status de avaliação é obrigatório";
+  }
+
+  // ✅ CORRIGIDO: Validar respostas do checklist
+  if (questions && questions.length > 0) {
+    questions.forEach((question, index) => {
+      // ✅ CORREÇÃO PRINCIPAL: usar question.description em vez de question.text
+      if (question.isRequired) {
+        const response = formData.checklistResponses?.[index];
+        if (!response) {
+          errors[
+            `checklist_${question.id}`
+          ] = `Resposta para "${question.description}" é obrigatória`;
+          return;
+        }
+
+        try {
+          validateChecklistResponseByType(question.type, response);
+        } catch (error: any) {
+          errors[`checklist_${question.id}`] =
+            error.issues?.[0]?.message ||
+            `Resposta inválida para "${question.description}"`;
+        }
+      }
+    });
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+};
+
+// ✅ FUNÇÃO CORRIGIDA para formatar dados da avaliação para envio à API
+export const formatEvaluationForAPI = (
+  formData: any,
+  articleVersionId: string
+) => {
+  // ✅ FILTRAR E MAPEAR checklistResponses corretamente
+  const checklistResponses =
+    formData.checklistResponses
+      ?.filter((response: any) => {
+        // Filtrar apenas respostas que têm valores válidos
+        return (
+          response.booleanResponse !== undefined ||
+          response.scaleResponse !== undefined ||
+          (response.textResponse && response.textResponse.trim() !== "")
+        );
+      })
+      .map((response: any) => {
+        // ✅ CORREÇÃO: garantir que apenas um tipo de resposta seja enviado
+        const mappedResponse: any = {
+          questionId: response.questionId,
+        };
+
+        // Adicionar apenas o tipo de resposta apropriado
+        if (response.booleanResponse !== undefined) {
+          mappedResponse.booleanResponse = response.booleanResponse;
+        } else if (response.scaleResponse !== undefined) {
+          mappedResponse.scaleResponse = response.scaleResponse;
+        } else if (
+          response.textResponse &&
+          response.textResponse.trim() !== ""
+        ) {
+          mappedResponse.textResponse = response.textResponse.trim();
+        }
+
+        return mappedResponse;
+      }) || [];
+
+  return {
+    grade: Number(formData.grade),
+    evaluationDescription: formData.evaluationDescription?.trim() || undefined,
+    articleVersionId,
+    status: formData.status,
+    checklistResponses,
+  };
+};
+
+// ✅ MAPEAMENTO DE STATUS: Frontend -> Backend -> Article Status
+export const getBackendStatusMapping = () => ({
+  // Status que o frontend envia
+  TO_CORRECTION: "TO_CORRECTION", // ✅ Backend recebe corretamente
+  APPROVED: "APPROVED", // ✅ Backend recebe corretamente
+  REJECTED: "REJECTED", // ✅ Backend recebe corretamente
+});
+
+// ✅ MAPEAMENTO DE STATUS: Article Status -> Label para UI
+export const getArticleStatusMapping = () => ({
+  SUBMITTED: "Submetido",
+  IN_EVALUATION: "Em Avaliação",
+  APPROVED: "Aprovado",
+  REJECTED: "Rejeitado",
+  TO_CORRECTION: "Para Correção",
+});
+
+// ✅ NOVA FUNÇÃO: Validar estrutura de checklistResponses antes do envio
+export const validateChecklistResponsesStructure = (
+  checklistResponses: any[]
+): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  if (!Array.isArray(checklistResponses)) {
+    errors.push("checklistResponses deve ser um array");
+    return { isValid: false, errors };
+  }
+
+  checklistResponses.forEach((response, index) => {
+    if (!response.questionId) {
+      errors.push(`Resposta ${index + 1}: questionId é obrigatório`);
+    }
+
+    const responseValues = [
+      response.booleanResponse,
+      response.scaleResponse,
+      response.textResponse,
+    ].filter((r) => r !== undefined && r !== null && r !== "");
+
+    if (responseValues.length === 0) {
+      errors.push(`Resposta ${index + 1}: pelo menos um valor é obrigatório`);
+    }
+
+    if (responseValues.length > 1) {
+      errors.push(
+        `Resposta ${index + 1}: apenas um tipo de resposta é permitido`
+      );
+    }
+
+    if (
+      response.scaleResponse !== undefined &&
+      (response.scaleResponse < 1 || response.scaleResponse > 5)
+    ) {
+      errors.push(`Resposta ${index + 1}: escala deve estar entre 1 e 5`);
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
 // ===== TIPOS INFERIDOS DOS SCHEMAS =====
 
 export type LoginFormData = z.infer<typeof loginSchema>;
@@ -367,3 +644,13 @@ export type EventFormFields = z.infer<typeof eventFormSchema>;
 export type ArticleFormData = z.infer<typeof articleSchema>;
 export type EvaluationFormData = z.infer<typeof evaluationSchema>;
 export type CreateEvaluatorFormData = z.infer<typeof createEvaluatorSchema>;
+export type ChecklistBasicFormData = z.infer<typeof checklistBasicSchema>;
+export type QuestionFormData = z.infer<typeof questionSchema>;
+export type QuestionsFormData = z.infer<typeof questionsSchema>;
+export type QuestionFormSchemaData = z.infer<typeof questionFormSchema>;
+export type QuestionsFormSchemaData = z.infer<typeof questionsFormSchema>;
+export type CompleteChecklistFormData = z.infer<typeof completeChecklistSchema>;
+export type ChecklistFiltersData = z.infer<typeof checklistFiltersSchema>;
+export type CompleteEvaluationFormData = z.infer<
+  typeof completeEvaluationSchema
+>;

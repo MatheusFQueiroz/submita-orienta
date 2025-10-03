@@ -44,29 +44,43 @@ export function useApi<T = any>(
         setLoading(true);
         setError(null);
 
-        // ✅ FIX: Usar a ref atual em vez da dependência
         const result = await apiFunctionRef.current(...args);
+
         setData(result);
 
-        if (onSuccessRef.current) {
-          onSuccessRef.current(result);
+        if (onSuccess) {
+          onSuccess(result);
         }
 
         return result;
       } catch (err: any) {
-        const errorMessage = err.message || "Erro na requisição";
-        setError(errorMessage);
-
-        if (onErrorRef.current) {
-          onErrorRef.current(err);
+        // Melhor tratamento de erro
+        let errorMessage = "Erro na requisição";
+        if (err.message) {
+          errorMessage = err.message;
+        } else if (err.status) {
+          errorMessage = `Erro ${err.status}: ${
+            err.message || "Erro interno do servidor"
+          }`;
         }
 
-        throw err;
+        setError(errorMessage);
+
+        if (onError) {
+          onError(err);
+        }
+
+        // NÃO fazer throw se immediate=true para não quebrar o render
+        if (!immediate) {
+          throw err;
+        }
+
+        return Promise.reject(err);
       } finally {
         setLoading(false);
       }
     },
-    [] // ✅ FIX: Array vazio - execute nunca mudará
+    [onSuccess, onError, immediate]
   );
 
   const reset = useCallback(() => {

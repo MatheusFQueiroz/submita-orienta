@@ -46,9 +46,7 @@ export default function DashboardPage() {
 
   return (
     <AuthGuard>
-      <PasswordGuard>
-        <PageLayout>{renderDashboard()}</PageLayout>
-      </PasswordGuard>
+      <PageLayout>{renderDashboard()}</PageLayout>
     </AuthGuard>
   );
 }

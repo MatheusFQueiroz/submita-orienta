@@ -10,8 +10,10 @@ interface UseFileUploadReturn {
   isUploading: boolean;
   uploadedFile: FileUploadResponse | null;
   uploadImage: (file: File) => Promise<FileUploadResponse>;
+  uploadPDF: (file: File) => Promise<FileUploadResponse>;
   uploadPdf: (file: File) => Promise<FileUploadResponse>;
   reset: () => void;
+  resetUpload: () => void;
 }
 
 export function useFileUpload(): UseFileUploadReturn {
@@ -54,7 +56,6 @@ export function useFileUpload(): UseFileUploadReturn {
           (progress) => setUploadProgress(progress)
         );
 
-        // Mapear resposta da API para formato esperado
         const mappedResponse: FileUploadResponse = {
           success: true,
           fileId: response.data?.id || response.id,
@@ -87,18 +88,16 @@ export function useFileUpload(): UseFileUploadReturn {
         setUploadProgress(0);
 
         const response = await api.uploadFile(
-          "/files/upload/pdf",
+          "/files/upload",
           file,
           (progress) => setUploadProgress(progress)
         );
 
-        // Mapear resposta da API para formato esperado
-        // Baseado no exemplo da resposta da API fornecida
         const mappedResponse: FileUploadResponse = {
           success: response.success || true,
           fileId: response.data?.id || response.id,
           fileName: response.data?.fileName || response.fileName,
-          pdfPath: response.data?.fileName || response.fileName, // Usar fileName como pdfPath
+          pdfPath: response.data?.fileName || response.fileName,
           fileSize: response.data?.size || response.size || file.size,
           mimeType: response.data?.mimeType || response.mimeType || file.type,
           message: response.message || "PDF enviado com sucesso!",
@@ -124,28 +123,34 @@ export function useFileUpload(): UseFileUploadReturn {
     setUploadedFile(null);
   }, []);
 
+  const resetUpload = useCallback(() => {
+    setUploadProgress(0);
+    setIsUploading(false);
+    setUploadedFile(null);
+  }, []);
+
   return {
     uploadProgress,
     isUploading,
     uploadedFile,
     uploadImage,
+    uploadPDF: uploadPdf,
     uploadPdf,
     reset,
+    resetUpload,
   };
 }
 
-// Tipos atualizados para garantir compatibilidade
 export interface FileUploadResponse {
   success: boolean;
   fileId: string;
   fileName: string;
-  pdfPath: string; // Será usado como pdfPath na API de artigos
+  pdfPath: string;
   fileSize: number;
   mimeType: string;
   message?: string;
 }
 
-// Exemplo de como usar o hook corrigido
 export function useArticleUpload() {
   const { uploadPdf, uploadedFile, isUploading, uploadProgress } =
     useFileUpload();
@@ -154,7 +159,6 @@ export function useArticleUpload() {
     try {
       const response = await uploadPdf(file);
 
-      // Retorna o fileName/pdfPath que deve ser usado como pdfPath
       return {
         fileName: response.fileName,
         pdfPath: response.pdfPath,

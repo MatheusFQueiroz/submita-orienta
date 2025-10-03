@@ -24,6 +24,7 @@ import {
 } from "@/lib/validations";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { FILE_CONFIG } from "@/lib/constants";
+import { useRouter } from "next/navigation";
 
 // interface FileUploadProps {
 //   accept: string;
@@ -48,6 +49,7 @@ export function EventForm({
   const [error, setError] = useState<string>("");
   const { uploadImage, uploadedFile, uploadProgress, isUploading } =
     useFileUpload();
+  const router = useRouter();
 
   const {
     register,
@@ -86,6 +88,10 @@ export function EventForm({
     uploadImage(file).catch(() => {
       setError("Erro ao fazer upload da imagem. Por favor, tente novamente.");
     });
+  };
+
+  const handleCancel = () => {
+    router.back();
   };
 
   const watchedEvaluationType = watch("evaluationType");
@@ -254,7 +260,7 @@ export function EventForm({
 
           {/* Botões */}
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" onClick={handleCancel}>
               Cancelar
             </Button>
             <Button

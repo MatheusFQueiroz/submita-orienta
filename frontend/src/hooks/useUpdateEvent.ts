@@ -22,9 +22,6 @@ export function useUpdateEvent(): UseUpdateEventReturn {
     try {
       setIsUpdating(true);
 
-      console.log("formData recebido no hook:", formData);
-      console.log("imageId:", formData.imageId);
-
       // ✅ Preparar dados para atualização
       const updateData = {
         name: formData.name,
@@ -36,8 +33,6 @@ export function useUpdateEvent(): UseUpdateEventReturn {
         evaluationType: formData.evaluationType,
         ...(formData.imageId && { banner: formData.imageId }),
       };
-
-      console.log("updateData enviado para API:", updateData);
 
       const updatedEvent = await eventService.updateEvent(eventId, updateData);
 

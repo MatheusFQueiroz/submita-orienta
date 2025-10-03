@@ -41,3 +41,30 @@ export interface ChecklistFormData {
     options?: string[];
   }[];
 }
+
+// Novo tipo para avaliação unificada
+export interface CompleteEvaluationFormData {
+  grade: number;
+  evaluationDescription: string;
+  status: "APPROVED" | "TO_CORRECTION" | "REJECTED";
+  articleVersionId: string;
+  checklistResponses?: Array<{
+    questionId: string;
+    booleanResponse?: boolean;
+    scaleResponse?: number;
+    textResponse?: string;
+  }>;
+}
+
+// Tipo para estado do hook de avaliação
+export interface EvaluationState {
+  grade: number;
+  evaluationDescription: string;
+  status: "APPROVED" | "TO_CORRECTION" | "REJECTED";
+  checklistResponses: Array<{
+    questionId: string;
+    booleanResponse?: boolean;
+    scaleResponse?: number;
+    textResponse?: string;
+  }>;
+}

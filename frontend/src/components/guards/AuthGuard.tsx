@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { UserRole } from "@/types";
-import { ROUTES, canAccess } from "@/lib/utils";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -22,39 +21,32 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const { user, isLoading, isAuthenticated } = useAuthContext();
   const router = useRouter();
-
-  // ✅ FIX: Usar ref para evitar redirecionamentos múltiplos
   const hasRedirectedRef = useRef(false);
 
+  // USAR useEffect PARA REDIRECIONAMENTOS - NÃO NO RENDER
   useEffect(() => {
     if (!isLoading && !hasRedirectedRef.current) {
-      // Se requer autenticação mas não está autenticado
+      // Não autenticado e precisa de autenticação
       if (requiresAuth && !isAuthenticated) {
         hasRedirectedRef.current = true;
-        router.push(ROUTES.LOGIN);
+        router.push("/login");
         return;
       }
 
-      // Se tem roles específicos mas usuário não tem acesso
-      if (requiredRoles.length > 0 && !canAccess(user, requiredRoles)) {
-        hasRedirectedRef.current = true;
-        router.push(ROUTES.DASHBOARD);
-        return;
-      }
-
-      // Se é primeira senha, bloqueia acesso
+      // Verificar roles se necessário
       if (
-        user?.isFirstLogin &&
-        window.location.pathname !== ROUTES.RESET_PASSWORD
+        requiredRoles.length > 0 &&
+        user &&
+        !requiredRoles.includes(user.role)
       ) {
         hasRedirectedRef.current = true;
-        router.push(ROUTES.RESET_PASSWORD);
+        router.push("/dashboard");
         return;
       }
     }
   }, [user, isLoading, isAuthenticated, requiresAuth, requiredRoles, router]);
 
-  // ✅ FIX: Reset do flag quando usuário muda
+  // Reset do flag quando usuário muda
   useEffect(() => {
     hasRedirectedRef.current = false;
   }, [user?.id]);
@@ -64,7 +56,7 @@ export function AuthGuard({
     return (
       fallback || (
         <div className="flex items-center justify-center min-h-screen">
-          <LoadingSpinner size="lg" />
+          <LoadingSpinner size="lg" text="Verificando autenticação..." />
         </div>
       )
     );
@@ -75,16 +67,8 @@ export function AuthGuard({
     return fallback || null;
   }
 
-  // Não tem permissão para acessar
-  if (requiredRoles.length > 0 && !canAccess(user, requiredRoles)) {
-    return fallback || null;
-  }
-
-  // Primeira senha - bloqueia tudo exceto redefinir senha
-  if (
-    user?.isFirstLogin &&
-    window.location.pathname !== ROUTES.RESET_PASSWORD
-  ) {
+  // Não tem permissão
+  if (requiredRoles.length > 0 && user && !requiredRoles.includes(user.role)) {
     return fallback || null;
   }
 

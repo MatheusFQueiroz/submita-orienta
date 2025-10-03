@@ -59,10 +59,10 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
 
   // Busca artigos do evento
   const {
-    data: articles,
+    data: articlesRaw,
     loading: articlesLoading,
     execute: refetchArticles,
-  } = useApi<Article[]>(
+  } = useApi<any[]>(
     () => {
       const params_query = new URLSearchParams();
       if (debouncedSearch) params_query.append("search", debouncedSearch);
@@ -74,6 +74,26 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
       immediate: true,
     }
   );
+
+  // Processar artigos para incluir avaliadores
+  const articles = React.useMemo(() => {
+    if (!articlesRaw) return null;
+
+    return articlesRaw.map((article: any) => ({
+      ...article,
+      // Extrair avaliadores dos assignments
+      evaluators:
+        article.evaluatorAssignments
+          ?.map((assignment: any) => ({
+            id: assignment.eventEvaluator?.user?.id,
+            name: assignment.eventEvaluator?.user?.name,
+            email: assignment.eventEvaluator?.user?.email,
+          }))
+          .filter((evaluator: any) => evaluator.id) || [],
+      // Manter contagem para referência
+      evaluatorCount: article._count?.evaluatorAssignments || 0,
+    }));
+  }, [articlesRaw]);
 
   // Função para carregar avaliadores
   const loadEvaluators = async () => {
@@ -91,9 +111,6 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
           .filter((item: any) => {
             const isItemActive = item.isActive !== false;
             const isUserActive = item.user?.isActive !== false;
-            console.log(
-              `Filtro - ${item.user?.name}: item.isActive=${item.isActive}, user.isActive=${item.user?.isActive}`
-            );
             return isItemActive && isUserActive;
           })
           .map((item: any) => ({
@@ -109,14 +126,11 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
               : undefined,
           }));
 
-        console.log("Avaliadores processados final:", processedEvaluators);
         setEvaluators(processedEvaluators);
       } else {
-        console.log("Dados dos avaliadores não são um array válido");
         setEvaluators([]);
       }
     } catch (error: any) {
-      console.error("Erro ao carregar avaliadores:", error);
       setEvaluatorsError(error.message || "Erro ao carregar avaliadores");
       setEvaluators([]);
     } finally {
@@ -285,13 +299,13 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
-                  Em Avaliação
+                  Atribuídos
                 </CardTitle>
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {articles?.filter((a) => a.status === "UNDER_REVIEW")
+                  {articles?.filter((a) => (a.evaluatorCount || 0) > 0)
                     .length || 0}
                 </div>
               </CardContent>
@@ -357,7 +371,7 @@ export default function EventArticlesPage({ params }: EventArticlesPageProps) {
               </DialogHeader>
               <div className="space-y-4 bg-white">
                 {selectedArticle && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-gray-50 rounded-lg max-h-32 overflow-y-auto">
                     <h4 className="font-medium">{selectedArticle.title}</h4>
                     <p className="text-sm text-gray-600 mt-1">
                       {selectedArticle.summary}

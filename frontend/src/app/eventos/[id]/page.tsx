@@ -12,6 +12,7 @@ import { AuthGuard } from "@/components/guards/AuthGuard";
 import { RoleGuard } from "@/components/guards/RoleGuard";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { ChecklistManager } from "@/components/events/ChecklistManager";
 import {
   Calendar,
   Clock,
@@ -45,7 +46,6 @@ export default function EventDetailPage({ params }: EventDetailPageProps) {
         const resolvedParams = await params;
         setEventId(resolvedParams.id);
       } catch (error) {
-        console.error("Erro ao resolver params:", error);
         setParamsError("Erro ao carregar parâmetros da página");
       }
     };
@@ -88,10 +88,12 @@ export default function EventDetailPage({ params }: EventDetailPageProps) {
         // Tratar 404 como dados vazios
         if (error.response?.status === 404) {
           return {
-            totalSubmissions: 0,
-            underReview: 0,
-            approved: 0,
-            evaluators: 0,
+            stats: {
+              totalSubmissions: 0,
+              underReview: 0,
+              approved: 0,
+              evaluators: 0,
+            },
           };
         }
         throw error;
@@ -209,6 +211,10 @@ export default function EventDetailPage({ params }: EventDetailPageProps) {
             )}
 
             <RoleGuard allowedRoles={[USER_ROLES.COORDINATOR]}>
+              <ChecklistManager
+                event={event}
+                onChecklistUpdated={() => window.location.reload()}
+              />
               <Button variant="outline" asChild>
                 <Link href={ROUTES.EVENT_ARTICLES(event.id)}>
                   <FileText className="mr-2 h-4 w-4" />
@@ -291,7 +297,7 @@ export default function EventDetailPage({ params }: EventDetailPageProps) {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-blue-600">
-                          {eventStats?.totalSubmissions || 0}
+                          {eventStats?.stats?.totalSubmissions || 0}
                         </div>
                         <div className="text-sm text-gray-600">
                           Total de Submissões
@@ -299,19 +305,21 @@ export default function EventDetailPage({ params }: EventDetailPageProps) {
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-yellow-600">
-                          {eventStats?.underReview || 0}
+                          {eventStats?.stats?.underReview || 0}
                         </div>
-                        <div className="text-sm text-gray-600">Em Análise</div>
+                        <div className="text-sm text-gray-600">
+                          Em Avaliação
+                        </div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-green-600">
-                          {eventStats?.approved || 0}
+                          {eventStats?.stats?.approved || 0}
                         </div>
                         <div className="text-sm text-gray-600">Aprovados</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-purple-600">
-                          {eventStats?.evaluators || 0}
+                          {eventStats?.stats?.evaluators || 0}
                         </div>
                         <div className="text-sm text-gray-600">Avaliadores</div>
                       </div>

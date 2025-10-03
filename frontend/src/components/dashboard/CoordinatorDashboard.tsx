@@ -5,13 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Users,
-  Calendar,
-  ClipboardList,
-  BarChart3,
-  Plus,
-} from "lucide-react";
+import { Users, Calendar, ClipboardList, BarChart3, Plus } from "lucide-react";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { useApi } from "@/hooks/useApi";
 import { CoordinatorStats } from "@/types";
@@ -39,10 +33,10 @@ export function CoordinatorDashboard() {
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       SUBMITTED: "bg-blue-100 text-blue-800",
-      UNDER_REVIEW: "bg-yellow-100 text-yellow-800",
+      IN_EVALUATION: "bg-yellow-100 text-yellow-800",
       APPROVED: "bg-green-100 text-green-800",
       REJECTED: "bg-red-100 text-red-800",
-      APPROVED_WITH_CORRECTIONS: "bg-purple-100 text-purple-800",
+      TO_CORRECTION: "bg-purple-100 text-purple-800",
     };
     return colors[status] || "bg-gray-100 text-gray-800";
   };
@@ -434,42 +428,6 @@ export function CoordinatorDashboard() {
                   </div>
                 </div>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Progresso das Avaliações */}
-      {stats?.evaluationProgress && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <ClipboardList className="mr-2 h-5 w-5" />
-              Progresso das Avaliações
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 rounded-lg bg-green-200 ">
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.evaluationProgress.completed}
-                </div>
-                <p className="text-sm text-green-600">Concluídas</p>
-              </div>
-
-              <div className="text-center p-4 rounded-lg bg-yellow-200 ">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {stats.evaluationProgress.inProgress}
-                </div>
-                <p className="text-sm text-yellow-600">Em Andamento</p>
-              </div>
-
-              <div className="text-center p-4 rounded-lg bg-orange-200 ">
-                <div className="text-2xl font-bold text-orange-600">
-                  {stats.evaluationProgress.pending}
-                </div>
-                <p className="text-sm text-orange-600">Pendentes</p>
-              </div>
             </div>
           </CardContent>
         </Card>

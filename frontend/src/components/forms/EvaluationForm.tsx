@@ -91,7 +91,7 @@ export function EvaluationForm({
     const currentAnswer = watchedResponses[index]?.answer || "";
 
     switch (question.type) {
-      case "BOOLEAN":
+      case "YES_NO":
         return (
           <RadioGroup
             value={currentAnswer}
@@ -129,28 +129,6 @@ export function EvaluationForm({
               <span>10 (Excelente)</span>
             </div>
           </div>
-        );
-
-      case "MULTIPLE_CHOICE":
-        return (
-          <RadioGroup
-            value={currentAnswer}
-            onValueChange={(value: string) =>
-              setValue(`responses.${index}.answer`, value)
-            }
-          >
-            {question.options?.map((option, optionIndex) => (
-              <div key={optionIndex} className="flex items-center space-x-2">
-                <RadioGroupItem
-                  value={option}
-                  id={`${question.id}-${optionIndex}`}
-                />
-                <Label htmlFor={`${question.id}-${optionIndex}`}>
-                  {option}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
         );
 
       case "TEXT":
@@ -254,11 +232,12 @@ export function EvaluationForm({
             {questions.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Checklist de Avaliação</h3>
+                {/* Descrição do checklist removida por não estar disponível na API */}
 
                 {questions.map((question, index) => (
                   <div key={question.id} className="space-y-2">
                     <Label className="text-sm font-medium flex items-start">
-                      {question.text}
+                      {question.description}
                       {question.isRequired && (
                         <span className="text-red-500 ml-1">*</span>
                       )}

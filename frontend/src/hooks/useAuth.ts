@@ -47,7 +47,6 @@ export function useAuth(): UseAuthReturn {
         const profile = await api.get<User>("/auth/profile");
         setUser(profile);
       } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
         Cookies.remove("submita_token");
       } finally {
         setIsLoading(false);
@@ -65,17 +64,23 @@ export function useAuth(): UseAuthReturn {
         const response = await api.post("/auth/login", data);
         const { token, user: userData, isFirstLogin } = response;
 
+        // IMPORTANTE: Salvar isFirstLogin no userData
+        const userWithFirstLogin = { ...userData, isFirstLogin };
+
         // Salva o token
         api.setToken(token);
 
         // Atualiza dados do usuário
-        const userWithFirstLogin = { ...userData, isFirstLogin };
         setUser(userWithFirstLogin);
 
         toast.success("Login realizado com sucesso!");
 
-        const redirectPath = getRedirectPath(userWithFirstLogin);
-        router.push(redirectPath);
+        // Se é primeiro login, vai para redefinir senha, senão dashboard
+        if (isFirstLogin) {
+          router.push("/redefinir-senha");
+        } else {
+          router.push("/dashboard");
+        }
       } catch (error: any) {
         toast.error(error.message || "Erro ao fazer login");
         throw error;
@@ -99,6 +104,7 @@ export function useAuth(): UseAuthReturn {
         setUser(userData);
 
         toast.success("Cadastro realizado com sucesso!");
+
         router.push(ROUTES.DASHBOARD);
       } catch (error: any) {
         toast.error(error.message || "Erro ao fazer cadastro");
@@ -114,7 +120,7 @@ export function useAuth(): UseAuthReturn {
     api.clearToken();
     setUser(null);
     toast.success("Logout realizado com sucesso!");
-    router.push(ROUTES.HOME);
+    router.push(ROUTES.LOGIN);
   }, [router]);
 
   const changePassword = useCallback(
@@ -148,7 +154,7 @@ export function useAuth(): UseAuthReturn {
       const profile = await api.get<User>("/auth/profile");
       setUser(profile);
     } catch (error) {
-      console.error("Erro ao atualizar perfil:", error);
+      // Erro silenciado
     }
   }, []);
 

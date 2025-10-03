@@ -30,9 +30,7 @@ export default function ProfilePage() {
       // await api.put("/auth/profile", formData);
       await refreshProfile();
       setIsEditing(false);
-    } catch (error) {
-      console.error("Erro ao salvar perfil:", error);
-    }
+    } catch (error) {}
   };
 
   const breadcrumbs = [{ label: "Perfil" }];

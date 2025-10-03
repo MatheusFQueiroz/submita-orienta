@@ -104,9 +104,7 @@ export function ArticleForm({
   const handlePdfUpload = async (file: File) => {
     try {
       await uploadPdf(file);
-    } catch (error) {
-      console.error("Erro ao fazer upload do PDF:", error);
-    }
+    } catch (error) {}
   };
 
   const addKeyword = () => {
@@ -181,16 +179,6 @@ export function ArticleForm({
         {error && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* ✅ DEBUG: Informações sobre eventos */}
-        {events.length === 0 && (
-          <Alert className="mb-4">
-            <AlertDescription>
-              ⚠️ DEBUG: Nenhum evento foi carregado no formulário. Verifique se
-              existem eventos no período de submissão.
-            </AlertDescription>
           </Alert>
         )}
 

@@ -1,13 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["localhost"],
+    domains: ["localhost", "minios3.cliick.dev.br"],
     remotePatterns: [
       {
         protocol: "http",
         hostname: "localhost",
         port: "8080",
         pathname: "/api/files/**",
+      },
+      {
+        protocol: "https",
+        hostname: "minios3.cliick.dev.br",
+        port: "",
+        pathname: "/submita-images/**",
+      },
+      {
+        protocol: "https",
+        hostname: "minios3.cliick.dev.br",
+        port: "",
+        pathname: "/submita-pdfs/**",
       },
     ],
   },

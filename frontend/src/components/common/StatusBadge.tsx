@@ -4,20 +4,23 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ArticleStatus } from "@/types";
-import { STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
+import { getStatusLabel, getStatusColor } from "@/lib/constants";
 
 interface StatusBadgeProps {
-  status: ArticleStatus;
+  status: ArticleStatus | string;
   className?: string;
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const label = getStatusLabel(status);
+  const colorClass = getStatusColor(status);
+  
   return (
     <Badge
       variant="secondary"
-      className={cn("text-xs font-medium", STATUS_COLORS[status], className)}
+      className={cn("text-xs font-medium", colorClass, className)}
     >
-      {STATUS_LABELS[status]}
+      {label}
     </Badge>
   );
 }

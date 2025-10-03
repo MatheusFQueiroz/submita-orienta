@@ -12,17 +12,16 @@ import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { PDFViewer } from "@/components/common/PDFViewer";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import {
-  FileText,
-  Download,
-  Star,
-} from "lucide-react";
+import { SubmitNewVersionModal } from "@/components/articles/SubmitNewVersionModal";
+import { FileText, Download, Star, Upload, AlertTriangle } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { useAuthContext } from "@/providers/AuthProvider";
 import { Article, Evaluation } from "@/types";
 import { ROUTES, formatDate, formatUserRole, USER_ROLES } from "@/lib/utils";
+import { canSubmitNewVersion } from "@/lib/validations";
 import { api } from "@/lib/api";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface ArticleDetailPageProps {
   params: Promise<{ id: string }>;
@@ -31,26 +30,133 @@ interface ArticleDetailPageProps {
 export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
   const { id } = React.use(params);
   const { user } = useAuthContext();
+  const router = useRouter();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
+  // ✅ FUNÇÃO DE TESTE temporária para debug
+  const handleTestEvaluations = async () => {
+    try {
+      const result = await api.get("/evaluations/debug/all");
+      toast.success(
+        `Debug: ${result.summary?.total || 0} avaliações encontradas`
+      );
+    } catch (error: any) {
+      toast.error(`Debug falhou: ${error.message}`);
+    }
+  };
+
+  // Buscar dados do artigo e suas avaliações
   const {
     data: article,
     loading: articleLoading,
+    execute: refetchArticle,
   } = useApi<{ article: Article }>(() => api.get(`/articles/${id}`), {
     immediate: true,
   });
 
-  const { data: evaluations, loading: evaluationsLoading } = useApi<
-    Evaluation[]
-  >(() => api.get(`/articles/${id}`), { immediate: true });
+  // ✅ NOVA IMPLEMENTAÇÃO: Estado para avaliações com melhores tipos
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [evaluationsError, setEvaluationsError] = useState<string | null>(null);
+
+  // ✅ FUNÇÃO MELHORADA para buscar avaliações
+  const fetchEvaluations = React.useCallback(async () => {
+    if (!id || !user) {
+      return;
+    }
+
+    setEvaluationsLoading(true);
+    setEvaluationsError(null);
+
+    try {
+      // ✅ USAR ENDPOINT CORRETO baseado no role do usuário
+      let endpoint = "";
+      let queryParams = "";
+
+      if (user.role === "STUDENT") {
+        // Para estudantes: buscar avaliações do próprio artigo
+        endpoint = `/evaluations`;
+        queryParams = `?articleId=${id}&withChecklistResponses=true`;
+      } else if (user.role === "EVALUATOR") {
+        // Para avaliadores: buscar apenas suas próprias avaliações
+        endpoint = `/evaluations`;
+        queryParams = `?articleId=${id}&evaluatorId=${user.id}&withChecklistResponses=true`;
+      } else if (user.role === "COORDINATOR") {
+        // Para coordenadores: buscar todas as avaliações do artigo
+        endpoint = `/evaluations`;
+        queryParams = `?articleId=${id}&withChecklistResponses=true`;
+      } else {
+        throw new Error("Role de usuário não reconhecido");
+      }
+
+      const fullUrl = endpoint + queryParams;
+
+      const result = await api.get(fullUrl);
+
+      // ✅ EXTRAIR dados corretamente da resposta paginada
+      let extractedEvaluations: Evaluation[] = [];
+
+      if (result && typeof result === "object") {
+        if (Array.isArray(result.evaluations)) {
+          // Resposta paginada com estrutura {evaluations: [], total: number, ...}
+          extractedEvaluations = result.evaluations;
+        } else if (Array.isArray(result.data)) {
+          // Resposta direta com array em data
+          extractedEvaluations = result.data;
+        } else if (Array.isArray(result)) {
+          // Resposta direta como array
+          extractedEvaluations = result;
+        }
+      }
+
+      setEvaluations(extractedEvaluations);
+    } catch (error: any) {
+      // ✅ TRATAR diferentes tipos de erro
+      if (error.status === 403) {
+        setEvaluationsError("Você não tem permissão para ver essas avaliações");
+      } else if (error.status === 404) {
+        setEvaluationsError("Artigo não encontrado");
+      } else if (error.status === 401) {
+        setEvaluationsError("Sessão expirada. Faça login novamente");
+      } else {
+        setEvaluationsError(
+          `Erro ao carregar avaliações: ${error.message || "Erro desconhecido"}`
+        );
+      }
+
+      setEvaluations([]);
+    } finally {
+      setEvaluationsLoading(false);
+    }
+  }, [id, user]);
+
+  // ✅ EXECUTAR busca quando artigo e usuário estiverem disponíveis
+  React.useEffect(() => {
+    if (article?.article.id && user?.id) {
+      fetchEvaluations();
+    }
+  }, [article?.article.id, user?.id, fetchEvaluations]);
+
+  // ✅ FUNÇÃO para recarregar avaliações
+  const refetchEvaluations = React.useCallback(() => {
+    fetchEvaluations();
+  }, [fetchEvaluations]);
 
   const fileUrl =
     process.env.NEXT_PUBLIC_API_MINIO +
     "/submita-pdfs/" +
-    article?.article.versions?.[0]?.pdfPath;
+    (article?.article.versions?.find(
+      (v) => v.version === article.article.currentVersion
+    )?.pdfPath || article?.article.versions?.[0]?.pdfPath);
 
-  // const isAuthor = user?.id === article?.article.userId;
+  const isAuthor = user?.id === article?.article.userId;
   const isEvaluator = user?.role === USER_ROLES.EVALUATOR;
+  const isStudent = user?.role === USER_ROLES.STUDENT;
+
+  // ✅ Verificar se pode submeter nova versão
+  const canSubmitVersion =
+    isAuthor && canSubmitNewVersion(article?.article.status || "");
 
   const handleWithdrawArticle = async () => {
     try {
@@ -59,6 +165,23 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
       window.location.href = ROUTES.ARTICLES;
     } catch (error: any) {
       toast.error(error.message || "Erro ao retirar artigo");
+    }
+  };
+
+  const handleRejectArticle = async () => {
+    try {
+      setIsRejecting(true);
+
+      await api.delete(`/articles/${id}/evaluators`, {
+        data: { userId: user?.id },
+      });
+
+      toast.success("Artigo recusado com sucesso!");
+      router.push(ROUTES.ARTICLES);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Erro ao recusar artigo");
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -75,8 +198,14 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       toast.error("Erro ao baixar arquivo");
-      console.log("Error downloading PDF:", error);
     }
+  };
+
+  // ✅ Callback quando nova versão for submetida com sucesso
+  const handleNewVersionSuccess = () => {
+    refetchArticle();
+    refetchEvaluations();
+    toast.success("Nova versão submetida! O artigo voltará para avaliação.");
   };
 
   if (articleLoading) {
@@ -116,10 +245,9 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
     { label: article.article.title },
   ];
 
-  // const canEdit = isAuthor && article.article.status === "SUBMITTED";
-  // const canWithdraw =
-  //   isAuthor && ["SUBMITTED", "UNDER_REVIEW"].includes(article.article.status);
-  const canEvaluate = isEvaluator && article.article.status === "UNDER_REVIEW";
+  const canEvaluate =
+    isEvaluator &&
+    ["IN_EVALUATION", "SUBMITTED"].includes(article?.article.status || "");
 
   return (
     <AuthGuard>
@@ -129,30 +257,48 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
         actions={
           <div className="flex space-x-2">
             {article?.article.pdfPath && (
-              <Button variant="outline" className="btn-event-accent" onClick={handleDownloadPDF}>
+              <Button
+                variant="outline"
+                className="btn-event-accent"
+                onClick={handleDownloadPDF}
+              >
                 <Download className="mr-2 h-4 w-4" />
                 Download PDF
               </Button>
             )}
 
-            {canEvaluate && (
-              <Button asChild>
-                <Link href={ROUTES.EVALUATE_ARTICLE(article.article.id)}>
-                  <Star className="mr-2 h-4 w-4" />
-                  Avaliar
-                </Link>
-              </Button>
+            {/* ✅ Botão para submeter nova versão (apenas para autores quando necessário) */}
+            {canSubmitVersion && (
+              <SubmitNewVersionModal
+                articleId={article.article.id}
+                currentVersion={article.article.currentVersion}
+                onSuccess={handleNewVersionSuccess}
+              >
+                <Button className="btn-gradient-accent">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Submeter Versão {article.article.currentVersion + 1}
+                </Button>
+              </SubmitNewVersionModal>
             )}
 
-            {/* {canWithdraw && (
-              <Button
-                variant="destructive"
-                onClick={() => setWithdrawDialogOpen(true)}
-              >
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Retirar
-              </Button>
-            )} */}
+            {canEvaluate && (
+              <>
+                <Button asChild className="btn-gradient-accent">
+                  <Link href={ROUTES.EVALUATE_ARTICLE(article.article.id)}>
+                    <Star className="mr-2 h-4 w-4" />
+                    Avaliar
+                  </Link>
+                </Button>
+
+                <Button
+                  variant="default"
+                  onClick={handleRejectArticle}
+                  disabled={isRejecting}
+                >
+                  {isRejecting ? "Recusando..." : "Recusar"}
+                </Button>
+              </>
+            )}
           </div>
         }
       >
@@ -178,19 +324,59 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
           {/* Coluna da direita - 1/3 da largura */}
           <div className="space-y-4">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList
+                className={`grid w-full ${
+                  isEvaluator ? "grid-cols-1" : "grid-cols-2"
+                }`}
+              >
                 <TabsTrigger value="overview" className="text-xs">
                   <FileText className="mr-1 h-3 w-3" />
                   Visão Geral
                 </TabsTrigger>
-                <TabsTrigger value="evaluations" className="text-xs">
-                  <Star className="mr-1 h-3 w-3" />
-                  Avaliações
-                </TabsTrigger>
+                {!isEvaluator && (
+                  <TabsTrigger value="evaluations" className="text-xs">
+                    <Star className="mr-1 h-3 w-3" />
+                    Avaliações
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* Tab Visão Geral */}
               <TabsContent value="overview" className="space-y-4 mt-4">
+                {/* ✅ Alert para status de correção */}
+                {canSubmitVersion && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-yellow-800">
+                          Correções Necessárias
+                        </h4>
+                        <p className="text-sm text-yellow-700 mt-1">
+                          Seu artigo foi avaliado e necessita de correções.
+                          Visualize as correções necessárias na tab "Avaliações"
+                          e submeta uma nova versão corrigida.
+                        </p>
+                        <div className="mt-3">
+                          <SubmitNewVersionModal
+                            articleId={article.article.id}
+                            currentVersion={article.article.currentVersion}
+                            onSuccess={handleNewVersionSuccess}
+                          >
+                            <Button
+                              size="sm"
+                              className="bg-yellow-600 hover:bg-yellow-700"
+                            >
+                              <Upload className="mr-2 h-4 w-4" />
+                              Submeter Versão Corrigida
+                            </Button>
+                          </SubmitNewVersionModal>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Informações Gerais */}
                 <Card>
                   <CardHeader>
@@ -263,410 +449,146 @@ export default function ArticleDetailPage({ params }: ArticleDetailPageProps) {
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Ações Rápidas */}
-                {/* <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Ações Rápidas</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                      <Button
-                      disabled={!article.article.pdfPath || !canEdit}
-                        variant="outline"
-                        onClick={handleDownloadPDF}
-                        className="w-full"
-                        size="sm"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download PDF
-                      </Button>
-
-                      <Button
-                      disabled={!canEdit}
-                        variant="outline"
-                        asChild
-                        className="w-full"
-                        size="sm"
-                      >
-                        <Link href={ROUTES.ARTICLE_DETAILS(article.article.id)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Editar Artigo
-                        </Link>
-                      </Button>
-
-                      <Button variant="outline" disabled={!canEvaluate} asChild className="w-full" size="sm">
-                        <Link
-                          href={ROUTES.EVALUATE_ARTICLE(article.article.id)}
-                        >
-                          <Star className="mr-2 h-4 w-4" />
-                          Avaliar Artigo
-                        </Link>
-                      </Button>
-
-                      <Button
-                      disabled={!canWithdraw}
-                        variant="outline"
-                        onClick={() => setWithdrawDialogOpen(true)}
-                        className="w-full"
-                        size="sm"
-                      >
-                        <AlertTriangle className="mr-2 h-4 w-4" />
-                        Retirar Artigo
-                      </Button>
-                  </CardContent>
-                </Card> */}
               </TabsContent>
 
-              {/* Tab Checklist */}
-              <TabsContent value="checklist" className="space-y-4 mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Checklist de Revisão
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs">✓</span>
-                          </div>
-                          <span className="text-sm font-medium">
-                            Formatação ABNT
-                          </span>
-                        </div>
-                        <span className="text-xs text-green-600">Completo</span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs">✓</span>
-                          </div>
-                          <span className="text-sm font-medium">
-                            Resumo dentro do limite
-                          </span>
-                        </div>
-                        <span className="text-xs text-green-600">Completo</span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
-                            <span className="text-white text-xs">!</span>
-                          </div>
-                          <span className="text-sm font-medium">
-                            Palavras-chave
-                          </span>
-                        </div>
-                        <span className="text-xs text-orange-600">Atenção</span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center">
-                            <span className="text-gray-500 text-xs">○</span>
-                          </div>
-                          <span className="text-sm font-medium">
-                            Verificação plágio
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500">Pendente</span>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center">
-                            <span className="text-gray-500 text-xs">○</span>
-                          </div>
-                          <span className="text-sm font-medium">
-                            Aprovação final
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500">Pendente</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Comentários do Checklist */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Observações</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                        <p className="text-sm text-yellow-800">
-                          <strong>Palavras-chave:</strong> Revisar se as
-                          palavras-chave estão adequadas ao tema do artigo.
-                        </p>
-                      </div>
-                      <textarea
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        rows={3}
-                        placeholder="Adicionar observação sobre o checklist..."
-                      />
-                      <Button size="sm" className="w-full">
-                        Adicionar Observação
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Tab Avaliações */}
-              <TabsContent value="evaluations" className="space-y-4 mt-4">
-                {/* Componente de Avaliação para Avaliadores */}
-                {canEvaluate && (
+              {/* Tab Avaliações - ESCONDIDO PARA AVALIADORES */}
+              {!isEvaluator && (
+                <TabsContent value="evaluations" className="space-y-4 mt-4">
+                  {/* Avaliações Existentes */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">Minha Avaliação</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Nota (0-10):
-                        </label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            step="0.1"
-                            className="w-20 px-3 py-2 border rounded-md text-center"
-                            placeholder="0.0"
-                          />
-                          <span className="text-sm text-gray-500">/ 10</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
-                          Comentários:
-                        </label>
-                        <textarea
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                          rows={4}
-                          placeholder="Adicione seus comentários detalhados sobre o artigo..."
-                        />
-                      </div>
-                      <Button className="w-full" size="sm">
-                        Salvar Avaliação
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Avaliações Existentes */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Avaliações Recebidas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {evaluationsLoading ? (
-                      <div className="text-center py-4">
-                        <LoadingSpinner text="Carregando avaliações..." />
-                      </div>
-                    ) : evaluations && evaluations.length > 0 ? (
-                      <div className="space-y-4">
-                        {evaluations.map((evaluation) => (
-                          <div
-                            key={evaluation.id}
-                            className="border rounded-lg p-4 bg-gray-50"
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">
+                          Avaliações Recebidas
+                        </CardTitle>
+                        {evaluations && evaluations.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              router.push(`/artigos/${id}/avaliacoes`)
+                            }
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {evaluation.evaluator?.name ||
-                                    "Avaliador Anônimo"}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {formatUserRole(
-                                    evaluation.evaluator?.role || "EVALUATOR"
-                                  )}
-                                </p>
-                              </div>
-                              {evaluation.grade && (
-                                <div className="text-right">
-                                  <div className="text-xl font-bold text-primary">
-                                    {evaluation.grade.toFixed(1)}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    / 10
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            {evaluation.evaluationDescription && (
-                              <div className="mb-3">
-                                <p className="text-sm text-gray-700 leading-relaxed">
-                                  {evaluation.evaluationDescription}
-                                </p>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>
-                                {evaluation.evaluationDate
-                                  ? formatDate(evaluation.evaluationDate)
-                                  : "Em andamento"}
-                              </span>
-                              {evaluation.status === "TO_CORRECTION" && (
-                                <Badge variant="outline" className="text-xs">
-                                  Pendente
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">
-                        <Star className="mx-auto h-12 w-12 mb-3 text-gray-300" />
-                        <p className="text-sm">
-                          Nenhuma avaliação recebida ainda
-                        </p>
-                        {article.article.status === "SUBMITTED" && (
-                          <p className="text-xs mt-2">
-                            O artigo está aguardando atribuição de avaliadores
-                          </p>
+                            Ver Detalhes
+                          </Button>
                         )}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Tab Histórico */}
-              <TabsContent value="history" className="space-y-4 mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Histórico de Versões
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Versão Atual */}
-                      <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center text-sm font-medium">
-                            {article.article.currentVersion}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <p className="font-medium text-sm">
-                                Versão {article.article.currentVersion}
-                              </p>
-                              <Badge variant="secondary" className="text-xs">
-                                Atual
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-gray-600">
-                              Submetido em{" "}
-                              {formatDate(article.article.createdAt)}
-                            </p>
-                          </div>
+                    </CardHeader>
+                    <CardContent>
+                      {evaluationsLoading ? (
+                        <div className="text-center py-4">
+                          <LoadingSpinner text="Carregando avaliações..." />
                         </div>
-                        <div className="flex items-center justify-between">
-                          <StatusBadge status={article.article.status} />
-                          {article.article.pdfPath && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleDownloadPDF}
-                            >
-                              <Download className="mr-1 h-3 w-3" />
-                              Download
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Versões Anteriores (exemplo) */}
-                      <div className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex items-center space-x-3 mb-3">
-                          <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm font-medium">
-                            1
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">Versão 1.0</p>
-                            <p className="text-xs text-gray-600">
-                              Submetido em{" "}
-                              {formatDate(
-                                new Date(
-                                  new Date().getTime() - 7 * 24 * 60 * 60 * 1000
-                                )
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-xs">
-                            Versão Anterior
-                          </Badge>
-                          <Button variant="outline" size="sm" disabled>
-                            <Download className="mr-1 h-3 w-3" />
-                            Download
+                      ) : evaluationsError ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <Star className="mx-auto h-12 w-12 mb-3 text-gray-300" />
+                          <p className="text-sm text-red-600">
+                            {evaluationsError}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={refetchEvaluations}
+                            className="mt-3"
+                          >
+                            Tentar Novamente
                           </Button>
                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      ) : evaluations && evaluations.length > 0 ? (
+                        <div className="space-y-4">
+                          <Button
+                            onClick={() =>
+                              router.push(`/artigos/${id}/avaliacoes`)
+                            }
+                            className="w-full btn-gradient-accent"
+                          >
+                            <Star className="mr-2 h-4 w-4" />
+                            Visualizar Avaliações Completas
+                          </Button>
 
-                {/* Timeline de Eventos */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Timeline de Eventos
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            Artigo Submetido
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatDate(article.article.createdAt)}
-                          </p>
-                        </div>
-                      </div>
+                          {/* Resumo rápido das avaliações */}
+                          <div className="space-y-2">
+                            {evaluations
+                              .slice(0, 2)
+                              .map((evaluation, index) => (
+                                <div
+                                  key={evaluation.id}
+                                  className="border rounded-lg p-3 bg-gray-50"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                      <p className="font-medium text-sm">
+                                        Avaliação #{index + 1}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {evaluation.evaluationDate
+                                          ? formatDate(
+                                              evaluation.evaluationDate
+                                            )
+                                          : "Em andamento"}
+                                      </p>
+                                    </div>
+                                    {evaluation.grade && (
+                                      <div className="text-right">
+                                        <div className="text-lg font-bold text-primary">
+                                          {evaluation.grade.toFixed(1)}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                          / 10
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
 
-                      <div className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Em Revisão</p>
-                          <p className="text-xs text-gray-500">
-                            {formatDate(
-                              new Date(
-                                new Date().getTime() - 5 * 24 * 60 * 60 * 1000
-                              )
+                                  {evaluation.evaluationDescription && (
+                                    <div className="mb-2">
+                                      <p className="text-sm text-gray-700 leading-relaxed">
+                                        {evaluation.evaluationDescription
+                                          .length > 100
+                                          ? evaluation.evaluationDescription.substring(
+                                              0,
+                                              100
+                                            ) + "..."
+                                          : evaluation.evaluationDescription}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {evaluation.status === "TO_CORRECTION" && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Necessita Correção
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+
+                            {evaluations.length > 2 && (
+                              <div className="text-center text-sm text-gray-500 py-2">
+                                e mais {evaluations.length - 2} avaliação(s)...
+                              </div>
                             )}
-                          </p>
+                          </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-gray-300 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-500">
-                            Aguardando Resultado
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <Star className="mx-auto h-12 w-12 mb-3 text-gray-300" />
+                          <p className="text-sm">
+                            Nenhuma avaliação recebida ainda
                           </p>
-                          <p className="text-xs text-gray-400">Pendente</p>
+                          {article.article.status === "SUBMITTED" && (
+                            <p className="text-xs mt-2">
+                              O artigo está aguardando atribuição de avaliadores
+                            </p>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
             </Tabs>
           </div>
         </div>

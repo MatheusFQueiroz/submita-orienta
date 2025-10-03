@@ -15,6 +15,17 @@ export function Footer() {
             <span>© {currentYear} Cliick. Feito com</span>
             <Heart className="h-3 w-3 text-red-500" />
             <span>para a comunidade acadêmica.</span>
+            <p>
+              Desenvolvido por{" "}
+              <a
+                href="https://minios3.cliick.dev.br/submita/equipe-hackathon.jpg"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Alunos da Faculdade Donaduzzi
+              </a>
+            </p>
           </div>
         </div>
       </div>

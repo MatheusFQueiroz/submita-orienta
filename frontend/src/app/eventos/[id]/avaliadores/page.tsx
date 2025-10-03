@@ -17,12 +17,7 @@ import { AuthGuard } from "@/components/guards/AuthGuard";
 import { LoadingSpinner } from "@/components/common/LoadingSpinner";
 import { DataTable } from "@/components/common/DataTable";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import {
-  Users,
-  Plus,
-  Search,
-  UserMinus,
-} from "lucide-react";
+import { Users, Plus, Search, UserMinus } from "lucide-react";
 import { useApi } from "@/hooks/useApi";
 import { useDebounce } from "@/hooks/useDebounce";
 import { User, Event } from "@/types";
@@ -242,7 +237,9 @@ export default function EventEvaluatorsPage({
                     <div className="flex justify-center py-8 bg-white">
                       <LoadingSpinner text="Carregando avaliadores..." />
                     </div>
-                  ) : availableEvaluators.length > 0 ? (
+                  ) : availableEvaluators.filter(
+                      (evaluator: any) => evaluator.isActive !== false
+                    ).length > 0 ? (
                     <>
                       <div className="relative bg-white">
                         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -255,6 +252,9 @@ export default function EventEvaluatorsPage({
                       </div>
                       <div className="max-h-96 overflow-y-auto space-y-2 bg-white">
                         {availableEvaluators
+                          .filter(
+                            (evaluator: any) => evaluator.isActive !== false
+                          ) // Filtrar apenas ativos
                           .filter((evaluator: { name: string }) =>
                             evaluator.name
                               .toLowerCase()
@@ -323,6 +323,7 @@ export default function EventEvaluatorsPage({
                         <Button
                           onClick={handleAddEvaluators}
                           disabled={selectedEvaluatorIds.length === 0}
+                          className="btn-gradient-accent"
                         >
                           Adicionar {selectedEvaluatorIds.length} avaliador(es)
                         </Button>
@@ -332,7 +333,9 @@ export default function EventEvaluatorsPage({
                     <div className="text-center py-8 text-gray-500 bg-white">
                       <Users className="mx-auto h-12 w-12 mb-4" />
                       <p>
-                        Todos os avaliadores já foram adicionados a este evento
+                        {availableEvaluators.length === 0
+                          ? "Todos os avaliadores já foram adicionados a este evento"
+                          : "Nenhum avaliador ativo disponível para adicionar"}
                       </p>
                     </div>
                   )}
@@ -365,7 +368,7 @@ export default function EventEvaluatorsPage({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {getEventEvaluatorsList().filter(
+                  {getAllEvaluatorsList().filter(
                     (e: any) =>
                       e.user?.isActive !== false && e.isActive !== false
                   ).length || 0}
@@ -380,7 +383,7 @@ export default function EventEvaluatorsPage({
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {getEventEvaluatorsList().filter(
+                  {getAllEvaluatorsList().filter(
                     (e: any) => e.user?.isFromBpk || e.isFromBpk
                   ).length || 0}
                 </div>

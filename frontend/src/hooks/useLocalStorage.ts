@@ -16,7 +16,6 @@ export function useLocalStorage<T>(
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
-      console.error(`Erro ao acessar localStorage para a chave "${key}":`, error);
       return initialValue;
     }
   });
@@ -33,9 +32,7 @@ export function useLocalStorage<T>(
         if (typeof window !== "undefined") {
           window.localStorage.setItem(key, JSON.stringify(valueToStore));
         }
-      } catch (error) {
-        console.error(`Erro ao definir localStorage para a chave "${key}":`, error);
-      }
+      } catch (error) {}
     },
     [key, storedValue]
   );
@@ -47,9 +44,7 @@ export function useLocalStorage<T>(
       if (typeof window !== "undefined") {
         window.localStorage.removeItem(key);
       }
-    } catch (error) {
-      console.error(`Erro ao remover localStorage para a chave "${key}":`, error);
-    }
+    } catch (error) {}
   }, [key, initialValue]);
 
   return [storedValue, setValue, removeValue];
